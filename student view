@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A Decade in Florence – Student v1.1</title>
+
+<link href="https://fonts.googleapis.com/css2?family=IM+Fell+English+SC&family=Playfair+Display:wght@600&display=swap" rel="stylesheet">
+
+<style>
+body {
+  font-family: Arial, sans-serif;
+  background: #f4efe6;
+  margin: 0;
+  padding: 20px;
+}
+.container {
+  max-width: 1100px;
+  margin: auto;
+  background: white;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0 0 10px rgba(0,0,0,0.15);
+}
+h1 {
+  font-family: 'IM Fell English SC', serif;
+  text-align: center;
+}
+.card {
+  background: #faf7ef;
+  border: 1px solid #d8cfc0;
+  padding: 15px;
+  border-radius: 8px;
+  margin-top: 15px;
+}
+.choice-btn {
+  display:block;
+  width:100%;
+  padding:10px;
+  margin-top:8px;
+  border:none;
+  border-radius:6px;
+  cursor:pointer;
+  background:#d8d4c4;
+}
+.choice-btn:hover {
+  background:#c8c4b5;
+}
+.scoreboard {
+  display:flex;
+  justify-content:space-around;
+  margin-top:15px;
+  font-weight:bold;
+}
+.stat {
+  padding:5px 10px;
+}
+.medici { color:#8b4513; }
+.church { color:#1f3a93; }
+.public { color:#2f6b2f; }
+.moral { color:#9b7c00; }
+.tension-bar {
+  height:18px;
+  background:linear-gradient(to right, green, yellow, red);
+  border-radius:10px;
+  margin-top:10px;
+  position:relative;
+}
+.tension-indicator {
+  height:18px;
+  width:5px;
+  background:black;
+  position:absolute;
+  top:0;
+  transition:left .4s ease;
+}
+.hidden { display:none; }
+textarea {
+  width:100%;
+  height:90px;
+  margin-top:10px;
+}
+.lock-screen {
+  background:#eee;
+  padding:20px;
+  text-align:center;
+  border-radius:8px;
+  margin-top:20px;
+}
+.small { font-size:12px; color:#666; text-align:right; }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+<h1>A Decade in Florence</h1>
+<div class="small">Student v1.1 – Reflection Locked</div>
+
+<div id="startScreen">
+<h2>Select Your Character</h2>
+<button onclick="startGame('Lorenzo')">👑 Lorenzo de' Medici</button>
+<button onclick="startGame('Artist')">🎨 Isabella da Firenze</button>
+<button onclick="startGame('Priest')">⛪ Father Matteo</button>
+<button onclick="startGame('Savonarola')">🔥 Savonarola</button>
+<button onclick="resumeGame()">Resume Saved Game</button>
+</div>
+
+<div id="game" class="hidden">
+
+<div class="scoreboard">
+<div class="stat medici">Power: <span id="power">0</span></div>
+<div class="stat church">Church: <span id="church">0</span></div>
+<div class="stat public">Public: <span id="public">0</span></div>
+<div class="stat moral">Morality: <span id="morality">0</span></div>
+</div>
+
+<h3>Church–State Tension</h3>
+<div class="tension-bar">
+<div id="tensionIndicator" class="tension-indicator" style="left:10%;"></div>
+</div>
+
+<h2>Round <span id="roundNum">1</span></h2>
+
+<div id="eventCard" class="card"></div>
+
+<div id="choicesContainer" class="card"></div>
+
+<div id="reflectionSection" class="card hidden">
+<h3>Reflection Required</h3>
+<p>Explain how your decision affected institutional power.</p>
+<textarea id="reflectionBox"></textarea>
+<button onclick="submitReflection()">Submit Reflection</button>
+<p id="reflectionMsg"></p>
+</div>
+
+<div id="roundLock" class="lock-screen hidden">
+<p><strong>Awaiting Teacher Advancement…</strong></p>
+<button onclick="manualUnlock()">Teacher Has Advanced</button>
+</div>
+
+<button onclick="toggleMusic()">Toggle Renaissance Music</button>
+
+</div>
+
+<audio id="music" loop>
+<source src="https://upload.wikimedia.org/wikipedia/commons/4/45/Lute_music.ogg" type="audio/ogg">
+</audio>
+
+</div>
+
+<script>
+
+let state = {
+  role: "",
+  power: 0,
+  church: 0,
+  public: 0,
+  morality: 0,
+  tension: 1,
+  round: 0
+};
+
+const rounds = [
+{
+event:"Plague spreads across Florence.",
+dilemmas:{
+Lorenzo:[
+{text:"Fund public hospitals", effect:{power:1,public:2,morality:1,tension:-1}},
+{text:"Protect Medici wealth", effect:{power:2,public:-1,morality:-1,tension:1}},
+{text:"Appeal to Church authority", effect:{church:2,power:1,tension:-1}}
+],
+Artist:[
+{text:"Create hopeful art for public", effect:{public:2,morality:1}},
+{text:"Seek elite patron", effect:{power:1,public:1}},
+{text:"Sell to Church", effect:{church:2,public:-1}}
+],
+Priest:[
+{text:"Organize prayer processions", effect:{church:2,public:1}},
+{text:"Blame moral corruption", effect:{church:1,public:-1,tension:1}},
+{text:"Support public hospitals", effect:{public:2,morality:1}}
+],
+Savonarola:[
+{text:"Preach reform", effect:{church:1,morality:2,tension:1}},
+{text:"Condemn Medici luxury", effect:{public:2,church:-1,tension:1}},
+{text:"Call for fasting", effect:{morality:2}}
+]
+}
+}
+];
+
+function startGame(role){
+state.role = role;
+state.power = 1;
+state.round = 0;
+saveGame();
+document.getElementById("startScreen").classList.add("hidden");
+document.getElementById("game").classList.remove("hidden");
+nextRound();
+}
+
+function nextRound(){
+state.round++;
+if(state.round > rounds.length){
+alert("Simulation Complete");
+return;
+}
+loadRound();
+updateUI();
+saveGame();
+}
+
+function loadRound(){
+document.getElementById("roundNum").innerText = state.round;
+let roundData = rounds[state.round-1];
+document.getElementById("eventCard").innerHTML = "<strong>Event:</strong> "+roundData.event;
+
+let dilemmas = roundData.dilemmas[state.role];
+let container = document.getElementById("choicesContainer");
+container.innerHTML = "<h3>Choose Your Action</h3>";
+
+dilemmas.forEach((choice, index)=>{
+let preview = Object.entries(choice.effect).map(([k,v])=>`${v>0?'+':''}${v} ${k}`).join(", ");
+let btn = document.createElement("button");
+btn.className = "choice-btn";
+btn.innerText = choice.text + " ("+preview+")";
+btn.onclick = ()=>applyChoice(choice.effect);
+container.appendChild(btn);
+});
+}
+
+function applyChoice(effect){
+for(let key in effect){
+state[key] += effect[key];
+}
+updateUI();
+document.getElementById("choicesContainer").classList.add("hidden");
+document.getElementById("reflectionSection").classList.remove("hidden");
+saveGame();
+}
+
+function submitReflection(){
+let text = document.getElementById("reflectionBox").value;
+if(text.length < 120){
+document.getElementById("reflectionMsg").innerText = "Please write at least 120 characters.";
+return;
+}
+document.getElementById("reflectionSection").classList.add("hidden");
+document.getElementById("roundLock").classList.remove("hidden");
+}
+
+function manualUnlock(){
+document.getElementById("roundLock").classList.add("hidden");
+document.getElementById("choicesContainer").classList.remove("hidden");
+document.getElementById("reflectionBox").value="";
+nextRound();
+}
+
+function updateUI(){
+document.getElementById("power").innerText = state.power;
+document.getElementById("church").innerText = state.church;
+document.getElementById("public").innerText = state.public;
+document.getElementById("morality").innerText = state.morality;
+document.getElementById("tensionIndicator").style.left = Math.min(state.tension*15,100)+"%";
+}
+
+function saveGame(){
+localStorage.setItem("florence_v11", JSON.stringify(state));
+}
+
+function resumeGame(){
+let saved = localStorage.getItem("florence_v11");
+if(saved){
+state = JSON.parse(saved);
+document.getElementById("startScreen").classList.add("hidden");
+document.getElementById("game").classList.remove("hidden");
+loadRound();
+updateUI();
+}
+}
+
+function toggleMusic(){
+let audio = document.getElementById("music");
+if(audio.paused){
+audio.volume = 0.2;
+audio.play();
+}else{
+audio.pause();
+}
+}
+
+</script>
+
+</body>
+</html>
