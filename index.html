@@ -2,22 +2,25 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>A Decade in Florence – v2.0 Core Engine</title>
+<title>A Decade in Florence – v2.1</title>
 <link href="https://fonts.googleapis.com/css2?family=IM+Fell+English+SC&display=swap" rel="stylesheet">
+
 <style>
 body { font-family: Arial, sans-serif; background:#f4efe6; padding:20px; }
 .container { max-width:1000px; margin:auto; background:white; padding:20px; border-radius:10px; }
 h1 { font-family:'IM Fell English SC', serif; text-align:center; }
 .card { background:#faf7ef; border:1px solid #ddd; padding:15px; margin-top:15px; border-radius:8px; }
-.choice-btn { display:block; width:100%; margin-top:8px; padding:10px; cursor:pointer; border-radius:6px; border:none; }
+.choice-btn { display:block; width:100%; margin-top:8px; padding:10px; border:none; border-radius:6px; cursor:pointer; }
 .choice-btn:hover { background:#e6dfc8; }
 .choice-btn.disabled { opacity:0.5; pointer-events:none; }
 .choice-btn.selected { background:#cfe3c8; border:2px solid #2f6b2f; }
 .hidden { display:none; }
 .scoreboard { display:flex; justify-content:space-around; margin-top:15px; font-weight:bold; }
+.balance-box { background:#f0ece2; padding:10px; margin-top:10px; border-radius:6px; }
 .lock-screen { background:#eee; padding:20px; margin-top:15px; text-align:center; border-radius:8px; }
 textarea { width:100%; height:80px; }
 .feedback { margin-top:10px; font-style:italic; }
+.power-lens { background:#eef2f6; padding:10px; border-left:4px solid #1f3a93; margin-top:10px; }
 </style>
 </head>
 
@@ -32,27 +35,38 @@ textarea { width:100%; height:80px; }
 <button onclick="startGame('Artist')">🎨 Isabella</button>
 <button onclick="startGame('Priest')">⛪ Father Matteo</button>
 <button onclick="startGame('Savonarola')">🔥 Savonarola</button>
-<button onclick="resumeGame()">Resume</button>
 </div>
 
 <div id="game" class="hidden">
 
 <div class="scoreboard">
-<div>Power: <span id="power">0</span></div>
-<div>Church: <span id="church">0</span></div>
-<div>Public: <span id="public">0</span></div>
-<div>Morality: <span id="morality">0</span></div>
-<div>Tension: <span id="tension">0</span></div>
+<div>Power: <span id="power">2</span></div>
+<div>Church: <span id="church">3</span></div>
+<div>Public: <span id="public">1</span></div>
+<div>Morality: <span id="morality">2</span></div>
+<div>Tension: <span id="tension">2</span></div>
 </div>
 
-<h2>Phase <span id="phaseNum">1</span> of 3</h2>
+<h2 id="phaseTitle"></h2>
 
 <div id="eventCard" class="card"></div>
+
+<div class="balance-box" id="balanceBox"></div>
+
+<div class="power-lens" id="powerLens">
+<strong>Power Lens:</strong><br>
+• Who currently holds the most influence?<br>
+• Who is under pressure?<br>
+• How might your decision shift authority?
+</div>
+
 <div id="choicesContainer" class="card"></div>
+
 <div id="feedback" class="feedback hidden"></div>
 
 <div id="reflectionSection" class="card hidden">
 <h3>Reflection</h3>
+<p><strong>Who gained influence because of your decision?</strong></p>
 <textarea id="reflectionBox"></textarea>
 <button onclick="submitReflection()">Submit Reflection</button>
 <p id="reflectionMsg"></p>
@@ -69,145 +83,104 @@ textarea { width:100%; height:80px; }
 <script>
 
 let state = {
-role: "",
-phase: 0,
-power: 0,
-church: 0,
-public: 0,
-morality: 0,
-tension: 0,
-decisionLocked: false
+role:"",
+phase:1,
+power:2,
+church:3,
+public:1,
+morality:2,
+tension:2,
+decisionLocked:false
 };
 
 function startGame(role){
-resetState();
 state.role = role;
-state.phase = 1;
 document.getElementById("startScreen").classList.add("hidden");
 document.getElementById("game").classList.remove("hidden");
-loadPhase();
-saveGame();
+loadPhase1();
+updateUI();
 }
 
-function resetState(){
-state = {
-role:"",
-phase:0,
-power:0,
-church:0,
-public:0,
-morality:0,
-tension:0,
-decisionLocked:false
-};
-}
-
-function loadPhase(){
-state.decisionLocked = false;
-document.getElementById("phaseNum").innerText = state.phase;
-
-let phaseData = generatePhase(state.phase);
+function loadPhase1(){
+document.getElementById("phaseTitle").innerText =
+"Phase 1: Plague and Public Fear (1490)";
 
 document.getElementById("eventCard").innerHTML =
-"<strong>Event:</strong> " + phaseData.event;
+"A deadly outbreak spreads through Florence. Merchants close shops. Families mourn.<br><br>"
++ "The Medici control much of the city’s wealth and are expected to lead relief efforts.<br>"
++ "The Church declares the plague a sign of moral corruption.<br>"
++ "Rival families whisper that Medici leadership is failing.";
 
+updateBalanceBox();
+
+loadChoicesPhase1();
+}
+
+function updateBalanceBox(){
+document.getElementById("balanceBox").innerHTML =
+"<strong>Current Institutional Balance:</strong><br>"
++ "Medici Influence: Moderate ("+state.power+")<br>"
++ "Church Authority: Strong ("+state.church+")<br>"
++ "Public Stability: Weak ("+state.public+")<br>"
++ "Moral Standing: Uncertain ("+state.morality+")<br>"
++ "Tension: Rising ("+state.tension+")";
+}
+
+function loadChoicesPhase1(){
 let container = document.getElementById("choicesContainer");
 container.innerHTML = "<h3>Choose ONE action:</h3>";
 
-phaseData.choices.forEach(choice => {
+let choices = [];
+
+if(state.role === "Priest"){
+choices = [
+{text:"Organize citywide prayer processions", effect:{church:2,public:1,tension:-1}, feedback:"Church authority visibly increases as citizens turn to faith."},
+{text:"Publicly condemn elite luxury", effect:{church:1,public:2,tension:1}, feedback:"Public support rises, but elite resentment grows."},
+{text:"Collaborate with Medici to fund hospitals", effect:{church:1,public:2,morality:1}, feedback:"Compassion strengthens both Church image and public trust."}
+];
+}
+
+if(state.role === "Lorenzo"){
+choices = [
+{text:"Fund public hospitals", effect:{public:2,morality:1}, feedback:"Public trust in Medici leadership rises."},
+{text:"Protect Medici wealth", effect:{power:2,tension:1}, feedback:"Elite influence grows, but public resentment increases."},
+{text:"Appeal to Church support", effect:{church:2,power:1}, feedback:"Church alliance strengthens your political legitimacy."}
+];
+}
+
+choices.forEach(choice=>{
 let btn = document.createElement("button");
-btn.className = "choice-btn";
-btn.innerText = choice.text + " (" + previewEffects(choice.effect) + ")";
-btn.onclick = () => makeDecision(choice, btn);
+btn.className="choice-btn";
+btn.innerText = choice.text;
+btn.onclick = ()=>makeDecision(choice,btn);
 container.appendChild(btn);
 });
-
-updateUI();
 }
 
-function generatePhase(phase){
-if(phase === 1){
-return {
-event:"A crisis destabilizes Florence.",
-choices: getCharacterChoicesPhase1()
-};
-}
-if(phase === 2){
-return {
-event: state.tension > 2 ? 
-"Institutional tensions escalate." :
-"Power balance shifts quietly.",
-choices: getCharacterChoicesPhase2()
-};
-}
-if(phase === 3){
-return {
-event:"The fate of Florence hangs in the balance.",
-choices: getCharacterChoicesPhase3()
-};
-}
-}
-
-function getCharacterChoicesPhase1(){
-if(state.role === "Lorenzo"){
-return [
-{text:"Fund public hospitals", effect:{public:2,morality:1}},
-{text:"Protect Medici wealth", effect:{power:2,tension:1}},
-{text:"Appeal to Church support", effect:{church:2}}
-];
-}
-return genericChoices();
-}
-
-function getCharacterChoicesPhase2(){
-return genericChoices();
-}
-
-function getCharacterChoicesPhase3(){
-return genericChoices();
-}
-
-function genericChoices(){
-return [
-{text:"Support elite interests", effect:{power:1}},
-{text:"Align with Church authority", effect:{church:1}},
-{text:"Support public reform", effect:{public:1}}
-];
-}
-
-function previewEffects(effect){
-return Object.entries(effect)
-.map(([k,v]) => `${v>0?'+':''}${v} ${k}`)
-.join(", ");
-}
-
-function makeDecision(choice, btn){
+function makeDecision(choice,btn){
 if(state.decisionLocked) return;
-state.decisionLocked = true;
+state.decisionLocked=true;
 
-document.querySelectorAll(".choice-btn").forEach(b=>{
-b.classList.add("disabled");
-});
+document.querySelectorAll(".choice-btn").forEach(b=>b.classList.add("disabled"));
 btn.classList.add("selected");
 
 for(let key in choice.effect){
-state[key] += choice.effect[key];
+state[key]+=choice.effect[key];
 }
 
-document.getElementById("feedback").innerText =
-"This decision shifts power within Florence.";
+document.getElementById("feedback").innerText = choice.feedback;
 document.getElementById("feedback").classList.remove("hidden");
 
-document.getElementById("reflectionSection").classList.remove("hidden");
-saveGame();
 updateUI();
+updateBalanceBox();
+
+document.getElementById("reflectionSection").classList.remove("hidden");
 }
 
 function submitReflection(){
-let text = document.getElementById("reflectionBox").value.trim();
-if(text.length < 10){
-document.getElementById("reflectionMsg").innerText =
-"Please write at least one thoughtful sentence.";
+let text=document.getElementById("reflectionBox").value.trim();
+if(text.length<20){
+document.getElementById("reflectionMsg").innerText="Please explain your reasoning clearly.";
 return;
 }
 document.getElementById("reflectionSection").classList.add("hidden");
@@ -215,45 +188,15 @@ document.getElementById("lockScreen").classList.remove("hidden");
 }
 
 function advancePhase(){
-document.getElementById("lockScreen").classList.add("hidden");
-document.getElementById("feedback").classList.add("hidden");
-document.getElementById("reflectionBox").value = "";
-
-if(state.phase >= 3){
-endSimulation();
-return;
-}
-
-state.phase++;
-loadPhase();
-saveGame();
-}
-
-function endSimulation(){
-alert("End of Simulation – More layers will be added next.");
+alert("Phase 2 will branch based on your choices. Coming next.");
 }
 
 function updateUI(){
-document.getElementById("power").innerText = state.power;
-document.getElementById("church").innerText = state.church;
-document.getElementById("public").innerText = state.public;
-document.getElementById("morality").innerText = state.morality;
-document.getElementById("tension").innerText = state.tension;
-}
-
-function saveGame(){
-localStorage.setItem("florence_v20", JSON.stringify(state));
-}
-
-function resumeGame(){
-let saved = localStorage.getItem("florence_v20");
-if(saved){
-state = JSON.parse(saved);
-document.getElementById("startScreen").classList.add("hidden");
-document.getElementById("game").classList.remove("hidden");
-loadPhase();
-updateUI();
-}
+document.getElementById("power").innerText=state.power;
+document.getElementById("church").innerText=state.church;
+document.getElementById("public").innerText=state.public;
+document.getElementById("morality").innerText=state.morality;
+document.getElementById("tension").innerText=state.tension;
 }
 
 </script>
